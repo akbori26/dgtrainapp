@@ -3,12 +3,21 @@ import { computed } from 'vue'
 import { store, drawers, keepDrawerOpen, leaveDrawer, closeDrawer } from '../store.js'
 
 const drawer = computed(() => drawers.find((d) => d.key === store.openDrawer))
+
+// Like the tabs: only a mouse keeps a hovered drawer open or lets it close by leaving
+function onEnter(event) {
+  if (event.pointerType === 'mouse') keepDrawerOpen()
+}
+
+function onLeave(event) {
+  if (event.pointerType === 'mouse') leaveDrawer()
+}
 </script>
 
 <template>
   <!-- The open drawer slides in from the right, over the panes but below the Player bar -->
   <Transition name="slide">
-    <aside v-if="drawer" class="drawer" @mouseenter="keepDrawerOpen" @mouseleave="leaveDrawer">
+    <aside v-if="drawer" class="drawer" @pointerenter="onEnter" @pointerleave="onLeave">
       <header class="drawer-header">
         <h2>{{ drawer.title }}</h2>
         <button class="secondary close" title="Close" @click="closeDrawer">✕</button>
@@ -62,5 +71,13 @@ const drawer = computed(() => drawers.find((d) => d.key === store.openDrawer))
 .slide-leave-to {
   transform: translateX(40px);
   opacity: 0;
+}
+
+/* Phone: covers the whole content area, above the bottom tab bar */
+@media (max-width: 640px) {
+  .drawer {
+    width: 100%;
+    max-height: calc(100vh - 11rem);
+  }
 }
 </style>

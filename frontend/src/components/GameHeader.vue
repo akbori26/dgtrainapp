@@ -10,13 +10,14 @@ onMounted(loadSavedGame)
   <header class="header">
     <h1>🐉 Dragon Trainer</h1>
 
-    <span v-if="store.gameId" class="muted">
+    <!-- On a phone only the title and New game fit (the last game comes back by itself on load) -->
+    <span v-if="store.gameId" class="muted wide-only">
       Game: <strong>{{ store.gameId }}</strong> · Turn {{ store.status.turn }}
     </span>
-    <span v-else class="muted">No game yet. Start a new one.</span>
+    <span v-else class="muted wide-only">No game yet. Start a new one.</span>
 
     <div class="header-buttons">
-      <button class="secondary" @click="resumeGame">Resume</button>
+      <button class="secondary wide-only" @click="resumeGame">Resume</button>
       <button @click="newGame">New game</button>
     </div>
   </header>
@@ -39,5 +40,15 @@ onMounted(loadSavedGame)
   display: flex;
   gap: 0.5rem;
   margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .header {
+    padding: 0.5rem 0;
+  }
+
+  .header h1 {
+    font-size: 1.15rem;
+  }
 }
 </style>

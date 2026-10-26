@@ -168,11 +168,12 @@ export function buyItem(itemId) {
 }
 
 // ---------- Drawers ----------
-// The panels that slide in from the right. `key` is what store.openDrawer holds.
+// The panels that slide in from the right. `key` is what store.openDrawer holds;
+// `icon` is shown on the phone's bottom tab bar.
 export const drawers = [
-  { key: 'board', tab: 'Board', title: 'Message board' },
-  { key: 'shop', tab: 'Shop', title: 'Shop' },
-  { key: 'history', tab: 'History', title: 'History' },
+  { key: 'board', tab: 'Board', title: 'Message board', icon: '📜' },
+  { key: 'shop', tab: 'Shop', title: 'Shop', icon: '🛒' },
+  { key: 'history', tab: 'History', title: 'History', icon: '📖' },
 ]
 
 // Hovering a tab opens its drawer; it closes shortly after the mouse leaves both the tab and the drawer.

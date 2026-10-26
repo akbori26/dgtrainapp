@@ -53,6 +53,9 @@ import SideDrawer from './components/SideDrawer.vue'
   position: relative;
   flex: 1;
   min-width: 0;
+  /* The drawer starts its slide 40px to the right. Without clipping, a phone widens the whole page
+     for that moment and the bottom tab bar ends up below the screen. */
+  overflow-x: clip;
 }
 
 .content {
@@ -64,5 +67,17 @@ import SideDrawer from './components/SideDrawer.vue'
 
 .content.dimmed {
   opacity: 0.4;
+}
+
+/* Phone: the tabs move to a bar at the bottom, so the content takes the full width
+   and leaves room at the end for that bar */
+@media (max-width: 640px) {
+  .app {
+    padding: 0 0.75rem 4.5rem;
+  }
+
+  .body {
+    margin-top: 0.75rem;
+  }
 }
 </style>

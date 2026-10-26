@@ -201,3 +201,20 @@ button:disabled {
   background: var(--warning-bg);
   color: var(--warning);
 }
+
+/* ---------- Phone ----------
+   Up to 640px wide the page uses the phone layout (each component has its own @media block with the same width).
+   .wide-only hides text a phone has no room for; .phone-only shows text only on a phone. */
+.phone-only {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .wide-only {
+    display: none;
+  }
+
+  .phone-only {
+    display: inline;
+  }
+}

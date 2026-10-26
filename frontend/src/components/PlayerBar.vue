@@ -22,16 +22,19 @@ const hearts = computed(() => {
       <span class="muted">Best —</span>
     </div>
 
+    <!-- On a phone the words are hidden (.wide-only): "120 pts ❤️❤️❤️ 🪙 85 🏅 1" -->
     <div v-else class="stats">
-      <span class="score"><strong>SCORE</strong> {{ store.status.score }}</span>
+      <span class="score">
+        <strong class="wide-only">SCORE</strong> {{ store.status.score }}<span class="phone-only"> pts</span>
+      </span>
       <span>
         <span class="hearts">{{ hearts }}</span>
-        {{ store.status.lives }} {{ store.status.lives === 1 ? 'life' : 'lives' }}
+        <span class="wide-only">{{ store.status.lives }} {{ store.status.lives === 1 ? 'life' : 'lives' }}</span>
       </span>
-      <span class="gold">🪙 {{ store.status.gold }} gold</span>
-      <span>🏅 Level {{ store.status.level }}</span>
-      <span class="muted">Turn {{ store.status.turn }}</span>
-      <span class="muted">Best {{ store.status.highScore }}</span>
+      <span class="gold">🪙 {{ store.status.gold }}<span class="wide-only"> gold</span></span>
+      <span>🏅 <span class="wide-only">Level</span> {{ store.status.level }}</span>
+      <span class="muted wide-only">Turn {{ store.status.turn }}</span>
+      <span class="muted wide-only">Best {{ store.status.highScore }}</span>
     </div>
 
     <!-- The server sends the warning text: 1 life left, or game over -->
@@ -82,5 +85,26 @@ const hearts = computed(() => {
 .game-over-text {
   font-weight: 700;
   color: var(--danger);
+}
+
+/* Phone: one compact row */
+@media (max-width: 640px) {
+  .player-bar {
+    padding: 0.4rem 0.75rem;
+  }
+
+  .stats {
+    gap: 0.25rem 1rem;
+  }
+
+  .score {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .warning,
+  .game-over-text {
+    font-size: 0.85rem;
+  }
 }
 </style>
