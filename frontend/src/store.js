@@ -167,6 +167,54 @@ export function buyItem(itemId) {
   })
 }
 
+// ---------- Drawers ----------
+// The panels that slide in from the right. `key` is what store.openDrawer holds.
+export const drawers = [
+  { key: 'board', tab: 'Board', title: 'Message board' },
+  { key: 'shop', tab: 'Shop', title: 'Shop' },
+  { key: 'history', tab: 'History', title: 'History' },
+]
+
+// Hovering a tab opens its drawer; it closes shortly after the mouse leaves both the tab and the drawer.
+// Clicking a tab pins the drawer open until the tab is clicked again or ✕ is pressed.
+const CLOSE_DELAY_MS = 300
+let closeTimer = null
+
+export function hoverDrawer(key) {
+  clearTimeout(closeTimer)
+  // A pinned drawer stays, so passing over another tab doesn't swap it away
+  if (!store.pinned) store.openDrawer = key
+}
+
+// The mouse is on the open drawer: don't close it
+export function keepDrawerOpen() {
+  clearTimeout(closeTimer)
+}
+
+export function leaveDrawer() {
+  if (store.pinned) return
+  clearTimeout(closeTimer)
+  closeTimer = setTimeout(() => {
+    if (!store.pinned) store.openDrawer = null
+  }, CLOSE_DELAY_MS)
+}
+
+export function clickTab(key) {
+  if (store.openDrawer === key && store.pinned) {
+    closeDrawer()
+  } else {
+    clearTimeout(closeTimer)
+    store.openDrawer = key
+    store.pinned = true
+  }
+}
+
+export function closeDrawer() {
+  clearTimeout(closeTimer)
+  store.openDrawer = null
+  store.pinned = false
+}
+
 // ---------- Errors ----------
 
 export function dismissError() {

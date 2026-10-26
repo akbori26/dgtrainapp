@@ -1,11 +1,13 @@
 <script setup>
-// The page layout. Each placeholder below becomes its own component in the next steps:
-// SideTabs + SideDrawer (12).
+// The page layout: header, Player bar, then the panes with the drawers and their << tabs.
+import { store } from './store.js'
 import GameHeader from './components/GameHeader.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import LastMessagePane from './components/LastMessagePane.vue'
 import ReputationPane from './components/ReputationPane.vue'
 import ErrorPane from './components/ErrorPane.vue'
+import SideTabs from './components/SideTabs.vue'
+import SideDrawer from './components/SideDrawer.vue'
 </script>
 
 <template>
@@ -14,21 +16,21 @@ import ErrorPane from './components/ErrorPane.vue'
     <PlayerBar />
 
     <div class="body">
-      <!-- Content area: the three panes that are always visible -->
-      <main class="content">
-        <LastMessagePane />
+      <!-- The drawer opens over this area, so it never covers the Player bar or the tabs -->
+      <div class="stage">
+        <!-- Content area: the three panes that are always visible, dimmed while a drawer is open -->
+        <main class="content" :class="{ dimmed: store.openDrawer }">
+          <LastMessagePane />
 
-        <ReputationPane />
+          <ReputationPane />
 
-        <ErrorPane />
-      </main>
+          <ErrorPane />
+        </main>
 
-      <!-- << tab rail: each tab opens a drawer (step 12) -->
-      <nav class="tab-rail">
-        <button class="tab">&lt;&lt;<br />Board</button>
-        <button class="tab">&lt;&lt;<br />Shop</button>
-        <button class="tab">&lt;&lt;<br />History</button>
-      </nav>
+        <SideDrawer />
+      </div>
+
+      <SideTabs />
     </div>
   </div>
 </template>
@@ -47,25 +49,20 @@ import ErrorPane from './components/ErrorPane.vue'
   margin-top: 1rem;
 }
 
-.content {
+.stage {
+  position: relative;
   flex: 1;
+  min-width: 0;
+}
+
+.content {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  transition: opacity 0.2s;
 }
 
-.tab-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 5.5rem;
-}
-
-.tab {
-  padding: 1.2rem 0.5rem;
-  border-color: var(--border);
-  background: var(--surface);
-  color: var(--text);
-  line-height: 1.3;
+.content.dimmed {
+  opacity: 0.4;
 }
 </style>
