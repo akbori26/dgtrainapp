@@ -1,8 +1,9 @@
 <script setup>
 // The page layout. Each placeholder below becomes its own component in the next steps:
-// LastMessagePane (9), ErrorPane (10), ReputationPane (11), SideTabs + SideDrawer (12).
+// ErrorPane (10), ReputationPane (11), SideTabs + SideDrawer (12).
 import GameHeader from './components/GameHeader.vue'
 import PlayerBar from './components/PlayerBar.vue'
+import LastMessagePane from './components/LastMessagePane.vue'
 </script>
 
 <template>
@@ -13,11 +14,7 @@ import PlayerBar from './components/PlayerBar.vue'
     <div class="body">
       <!-- Content area: the three panes that are always visible -->
       <main class="content">
-        <!-- 6 Last message (step 9) -->
-        <section class="pane">
-          <h2 class="pane-title">Last message</h2>
-          <p class="muted">The outcome of your last action shows here.</p>
-        </section>
+        <LastMessagePane />
 
         <!-- 4 Reputation (step 11) -->
         <section class="pane">
