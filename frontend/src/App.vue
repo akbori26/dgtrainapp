@@ -1,22 +1,14 @@
 <script setup>
 // The page layout. Each placeholder below becomes its own component in the next steps:
-// PlayerBar (8), LastMessagePane (9), ErrorPane (10), ReputationPane (11),
-// SideTabs + SideDrawer (12).
+// LastMessagePane (9), ErrorPane (10), ReputationPane (11), SideTabs + SideDrawer (12).
 import GameHeader from './components/GameHeader.vue'
+import PlayerBar from './components/PlayerBar.vue'
 </script>
 
 <template>
   <div class="app">
     <GameHeader />
-
-    <!-- 1 Player: always visible (step 8) -->
-    <section class="player-bar">
-      <span><strong>SCORE</strong> —</span>
-      <span>❤️ — lives</span>
-      <span class="gold">🪙 — gold</span>
-      <span>🏅 Level —</span>
-      <span class="muted">Best —</span>
-    </section>
+    <PlayerBar />
 
     <div class="body">
       <!-- Content area: the three panes that are always visible -->
@@ -56,22 +48,6 @@ import GameHeader from './components/GameHeader.vue'
   max-width: 1100px;
   margin: 0 auto;
   padding: 0 1rem 1rem;
-}
-
-/* Stays at the top while the page scrolls, so score, lives and gold are always on screen */
-.player-bar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2rem;
-  padding: 0.6rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
 }
 
 /* Content on the left, tab rail on the right */
