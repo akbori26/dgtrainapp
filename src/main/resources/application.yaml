@@ -13,3 +13,10 @@ spring:
       ddl-auto: none
 
 
+
+dragontrainapp:
+  cors:
+    # Front ends served from another origin that may call /api/** (comma-separated).
+    # Defaults cover the Vite (5173) and Create React App / Next.js (3000) dev servers.
+    # Set DRAGONTRAINAPP_CORS_ORIGINS to change them, e.g. for a deployed front end.
+    allowed-origins: ${DRAGONTRAINAPP_CORS_ORIGINS:http://localhost:5173,http://localhost:3000}

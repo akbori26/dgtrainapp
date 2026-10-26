@@ -11,6 +11,8 @@ public enum CheckFailure {
     BOARD_EMPTY("No ads are stored for this game. Download the message board first."),
     MARKET_EMPTY("No market items are stored for this game. Open the market first."),
     INDEX_OUT_OF_RANGE("Pick a number from 1 to %d."),
+    AD_NOT_FOUND("Ad %s is not on this game's message board. Download the message board first."),
+    ITEM_NOT_FOUND("Item %s is not in this game's shop. Open the market first."),
     AD_ALREADY_USED("Ad %s has already been used in this game. Pick a different ad, or download a new board."),
     AD_EXPIRED("Ad %s has expired and can no longer be solved. Pick a different ad, or download a new board."),
     NOT_ENOUGH_GOLD("%s costs %d gold, but you only have %d. You need %d more.");

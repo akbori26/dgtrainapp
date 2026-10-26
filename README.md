@@ -7,8 +7,8 @@ The client talks to the public Mugloar REST API and keeps a local copy of every 
 so a game can be resumed later.
 
 > **Work in progress:** the app is being converted from a terminal client into a single page web application.
-> The terminal menu has been removed, and the web pages are not built yet. What remains is the backend: the
-> Mugloar API service, the SQLite storage and the game rules described below.
+> The terminal menu has been removed and the backend is a REST API that any front end can use. The web pages
+> are not built yet.
 
 ## Requirements
 - Java 21
@@ -49,13 +49,82 @@ with "no such table". Run the `sqlite3` command above to fix it.
 ./mvnw spring-boot:run
 ```
 
-The app starts a web server on port 8080. There are no pages or endpoints yet.
+The app starts a web server on port 8080 with the REST API under `/api/games`.
+To see and try every endpoint, open Swagger UI at http://localhost:8080/swagger-ui.html
+(the OpenAPI spec is at http://localhost:8080/v3/api-docs).
 
 To build a jar:
 
 ```bash
 ./mvnw package
 java -jar target/dragon-trainer-app-1.0.0.jar
+```
+
+## REST API
+Every button or command in a front end is one HTTP call. The game ID is part of the URL, so the server keeps
+no per-browser state and several front ends can play different games at once.
+
+| Button / command | Request | Answer |
+|---|---|---|
+| Start game | `POST /api/games` | `201`, the game status, and a `Location` header |
+| Resume last game | `GET /api/games/current` | the status of the last game started |
+| Check status | `GET /api/games/{gameId}` | the game status |
+| View board | `GET /api/games/{gameId}/ads` | the stored ads (empty until downloaded) |
+| Download ads | `POST /api/games/{gameId}/ads/refresh` | the new board |
+| Solve ad | `POST /api/games/{gameId}/ads/{adId}/solve` | the outcome and the updated status |
+| Reputation | `POST /api/games/{gameId}/reputation` | the reputation and the updated status (costs a turn) |
+| Market | `GET /api/games/{gameId}/shop` | the shop items (downloaded the first time per game) |
+| Buy item | `POST /api/games/{gameId}/shop/{itemId}/buy` | the outcome and the updated status |
+| View logs | `GET /api/games/{gameId}/history` | missions and purchases, newest first |
+
+Ads and items are identified by their ID, not their position, so a click still hits the right ad after the
+board is downloaded again.
+
+### What the answers contain
+The answers carry everything a page needs to show, so no front end repeats the game rules:
+
+- **Status:** turn, lives, gold, level, score, high score, `lifeState` (`HEALTHY`, `CRITICAL` or `GAME_OVER`)
+  and a `warning` to show, or `null`.
+- **Ad:** ID, message, reward, probability, `risk` (`{"code":"SAFE","icon":"🟢","label":"Safe"}`), `turnsLeft`,
+  `expired`, `used`, and `solvable` to enable or disable the Solve button.
+- **Shop item:** ID, name, cost and `affordable` to enable or disable the Buy button.
+- **History entry:** time, `type` (`MISSION` or `PURCHASE`), ad or item ID, risk, `goldChange` (`+60`, `-50`, or
+  `0` when it failed), success and message.
+- **Actions** (solve, reputation, buy) answer `{"outcome": …, "status": …}`, so the page updates its numbers
+  without a second request.
+
+```json
+POST /api/games/cWMtNkmc/ads/cEg1Uvof/solve
+{"outcome":{"adId":"cEg1Uvof","success":true,"reward":8,"message":"You successfully solved the mission!"},
+ "status":{"gameId":"cWMtNkmc","turn":1,"lives":3,"gold":8,"level":0,"score":8,"highScore":8,"lifeState":"HEALTHY","warning":null}}
+```
+
+### Errors
+Every error has the same shape, Spring's `ProblemDetail` (RFC 9457) with an extra `code` to switch on:
+
+```json
+{"status":409,"title":"Not enough gold","code":"NOT_ENOUGH_GOLD",
+ "detail":"Claw Honing costs 300 gold, but you only have 8. You need 292 more.",
+ "instance":"/api/games/cWMtNkmc/shop/ch/buy"}
+```
+
+| Status | Codes |
+|---|---|
+| 404 | `NO_ACTIVE_GAME`, `PLAYER_STATUS_MISSING`, `AD_NOT_FOUND`, `ITEM_NOT_FOUND`, `GAME_NOT_FOUND` |
+| 409 | `GAME_OVER`, `AD_ALREADY_USED`, `AD_EXPIRED`, `NOT_ENOUGH_GOLD`, `BOARD_EMPTY`, `MARKET_EMPTY` |
+| 400 / 410 / 502 / 503 | The Mugloar server's errors, see [Server errors](#server-errors); `mugloarStatus` holds its own status |
+| 500 | `INTERNAL_ERROR`: anything unexpected. The details are logged, not sent |
+
+A rule broken before the call, such as an expired ad or too little gold, is refused without contacting
+the Mugloar server.
+
+### Front ends on another origin (CORS)
+A front end served from another origin may call `/api/**` with `GET` and `POST` if its origin is allowed.
+By default these are the Vite (`http://localhost:5173`) and Create React App / Next.js (`http://localhost:3000`)
+dev servers. Set your own as a comma-separated list:
+
+```bash
+DRAGONTRAINAPP_CORS_ORIGINS=https://dragons.example.com ./mvnw spring-boot:run
 ```
 
 ## Game rules
@@ -163,9 +232,11 @@ A successful message board or shop download with an empty body returns an empty 
 ```
 src/main/java/com/akbori/dgtrainapp/
   DragonTrainerApplication.java   Spring Boot entry point
+  web/                            GameController (REST API), ApiExceptionHandler (error format), WebConfig (CORS, API docs)
+    dto/                          the JSON answers: status, ads, shop items, history, action results
   game/                           game rules: expiry, gold, lives, boards, player status, history
     check/                        checks run before an action, and the reasons they refuse it
-  service/                        MugloarService: calls to the Mugloar REST API
+  service/                        GameService: one method per player action; MugloarService: calls to the Mugloar REST API
     api/                          MugloarApiException, and the MugloarError and MugloarOperation enums
   dto/                            records for API requests and responses
   model/                          JPA entities stored in SQLite, and the EntryType and RiskCategory enums
@@ -202,6 +273,9 @@ Changes flow `feature/...` → `develop` → `stage` → `release`.
 
 | Test class | What it covers |
 |---|---|
+| `GameControllerTest` | Each route, the JSON shape, the error format for broken rules, server and unexpected errors, and CORS |
+| `ApiFlowIntegrationTest` | A whole game through the API (start, download ads, solve, shop, buy, history) with real storage and a mocked Mugloar server; the Swagger docs |
+| `GameServiceTest` | Each action checks the rules, calls the server only when allowed, and stores the result |
 | `MugloarServiceTest` | Every API call against a mocked server: success, each error status, network failure, an unreadable body and a missing game ID, plus ad decoding |
 | `MugloarErrorTest` | Each server status maps to the right `MugloarError` |
 | `MugloarServiceLiveTest` | The same endpoints against the real Mugloar server (needs network; tagged `live`) |
