@@ -15,11 +15,11 @@ const hearts = computed(() => {
   <section class="player-bar" :class="{ 'game-over': gameOver }">
     <!-- No game yet: show the layout with dashes -->
     <div v-if="!store.status" class="stats">
-      <span><strong>SCORE</strong> —</span>
-      <span>❤️ — lives</span>
-      <span class="gold">🪙 — gold</span>
-      <span>🏅 Level —</span>
-      <span class="muted">Best —</span>
+      <span class="score"><strong class="wide-only">SCORE</strong> —<span class="phone-only"> pts</span></span>
+      <span>❤️<span class="wide-only"> — lives</span></span>
+      <span class="gold">🪙 —<span class="wide-only"> gold</span></span>
+      <span>🏅 <span class="wide-only">Level</span> —</span>
+      <span class="muted wide-only">Best —</span>
     </div>
 
     <!-- On a phone the words are hidden (.wide-only): "120 pts ❤️❤️❤️ 🪙 85 🏅 1" -->

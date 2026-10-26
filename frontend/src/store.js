@@ -160,10 +160,8 @@ export function buyItem(itemId) {
   return run(async () => {
     const { outcome, status } = await api.buyItem(store.gameId, itemId)
     store.status = status
-    store.lastMessage = {
-      success: outcome.success,
-      text: outcome.success ? `${outcome.message} -${outcome.cost} gold` : outcome.message,
-    }
+    // The server's message already names the cost: "Bought Healing potion for 50 gold"
+    store.lastMessage = { success: outcome.success, text: outcome.message }
     await reloadLists()
   })
 }
