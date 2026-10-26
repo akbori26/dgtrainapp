@@ -1,9 +1,10 @@
 <script setup>
 // The page layout. Each placeholder below becomes its own component in the next steps:
-// ErrorPane (10), ReputationPane (11), SideTabs + SideDrawer (12).
+// ReputationPane (11), SideTabs + SideDrawer (12).
 import GameHeader from './components/GameHeader.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import LastMessagePane from './components/LastMessagePane.vue'
+import ErrorPane from './components/ErrorPane.vue'
 </script>
 
 <template>
@@ -23,11 +24,7 @@ import LastMessagePane from './components/LastMessagePane.vue'
           <button>Investigate</button>
         </section>
 
-        <!-- 7 Server errors (step 10) -->
-        <section class="pane">
-          <h2 class="pane-title">Server errors</h2>
-          <p class="muted">No errors.</p>
-        </section>
+        <ErrorPane />
       </main>
 
       <!-- << tab rail: each tab opens a drawer (step 12) -->
