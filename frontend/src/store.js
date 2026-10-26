@@ -242,6 +242,8 @@ function readSaved(key) {
 }
 
 // In development, `store` can be looked at from the browser console: window.store
-if (import.meta.env?.DEV) {
+// Only the first copy is kept: after an edit Vite may load this file again under another URL,
+// and window.store must stay the one the page uses.
+if (import.meta.env?.DEV && !window.store) {
   window.store = store
 }
