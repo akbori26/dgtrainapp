@@ -1,20 +1,13 @@
 <script setup>
 // The page layout. Each placeholder below becomes its own component in the next steps:
-// GameHeader (7), PlayerBar (8), LastMessagePane (9), ErrorPane (10), ReputationPane (11),
+// PlayerBar (8), LastMessagePane (9), ErrorPane (10), ReputationPane (11),
 // SideTabs + SideDrawer (12).
+import GameHeader from './components/GameHeader.vue'
 </script>
 
 <template>
   <div class="app">
-    <!-- Header: title, current game, Resume and New game (step 7) -->
-    <header class="header">
-      <h1>🐉 Dragon Trainer</h1>
-      <span class="muted">Game: — · Turn —</span>
-      <div class="header-buttons">
-        <button class="secondary">Resume</button>
-        <button>New game</button>
-      </div>
-    </header>
+    <GameHeader />
 
     <!-- 1 Player: always visible (step 8) -->
     <section class="player-bar">
@@ -63,23 +56,6 @@
   max-width: 1100px;
   margin: 0 auto;
   padding: 0 1rem 1rem;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 0.75rem 0;
-}
-
-.header h1 {
-  font-size: 1.4rem;
-}
-
-.header-buttons {
-  display: flex;
-  gap: 0.5rem;
-  margin-left: auto;
 }
 
 /* Stays at the top while the page scrolls, so score, lives and gold are always on screen */
