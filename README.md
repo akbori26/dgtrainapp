@@ -3,15 +3,13 @@
 A client for [Dragons of Mugloar](https://dragonsofmugloar.com), a game where you send a dragon on
 missions from a message board, earn gold and score, and buy items from a shop to stay alive.
 
-The client talks to the public Mugloar REST API and keeps a local copy of every game in SQLite,
+The game is played in the browser: a Vue single page application (`frontend/`) on top of a Spring Boot
+REST API. The API talks to the public Mugloar REST API and keeps a local copy of every game in SQLite,
 so a game can be resumed later.
-
-> **Work in progress:** the app is being converted from a terminal client into a single page web application.
-> The terminal menu has been removed and the backend is a REST API that any front end can use. The web pages
-> are not built yet.
 
 ## Requirements
 - Java 21
+- Node.js 20.19 or newer (22.12 or newer on the 22 line), with npm, to build the web page
 - Network access to `https://dragonsofmugloar.com`
 - The `sqlite3` command-line tool, to create the database the first time
 
@@ -44,21 +42,73 @@ DRAGONTRAINAPP_DB_PATH=/path/to/drogontrainapp.db ./mvnw spring-boot:run
 If the database file is missing, SQLite creates an empty one without tables, and the first action fails
 with "no such table". Run the `sqlite3` command above to fix it.
 
-## Running
+The web page's packages are installed once, in `frontend/`:
+
 ```bash
+cd frontend
+npm install
+```
+
+## Running
+### Play
+Build the web page, then start the app:
+
+```bash
+cd frontend && npm run build && cd ..
 ./mvnw spring-boot:run
 ```
 
-The app starts a web server on port 8080 with the REST API under `/api/games`.
-To see and try every endpoint, open Swagger UI at http://localhost:8080/swagger-ui.html
-(the OpenAPI spec is at http://localhost:8080/v3/api-docs).
+Open http://localhost:8080 to play. `npm run build` puts the page in `src/main/resources/static/`, where
+Spring Boot serves it. That folder is build output and not part of the repository (`.gitignore`), so run
+`npm run build` again after changing the front end, and restart the app.
 
-To build a jar:
+The REST API is under `/api/games`. To see and try every endpoint, open Swagger UI at
+http://localhost:8080/swagger-ui.html (the OpenAPI spec is at http://localhost:8080/v3/api-docs).
+
+### Develop the front end
+Use two terminals, so changes to the page show in the browser at once, without building:
 
 ```bash
+# Terminal 1: the REST API on port 8080
+./mvnw spring-boot:run
+
+# Terminal 2: the Vite dev server on port 5173
+cd frontend
+npm run dev
+```
+
+Open http://localhost:5173. The page calls `/api/...` on its own address and Vite forwards those requests
+to Spring on port 8080 (`server.proxy` in `frontend/vite.config.js`), so the browser never talks to another
+origin.
+
+### Build a jar
+Build the page first, so the jar contains it:
+
+```bash
+cd frontend && npm run build && cd ..
 ./mvnw package
 java -jar target/dragon-trainer-app-1.0.0.jar
 ```
+
+## Web page
+One page, written with Vue 3 `<script setup>` components and plain CSS (no router, store library or UI
+library), so it is easy to follow:
+
+- **Always visible:** the header (New game, Resume), the Player bar (score, lives, gold, level, turn, best,
+  the low-lives warning and game over), and the Last message, Reputation and Server errors panes.
+- **Drawers** that slide in from the right: the Message board (select an ad, Solve), the Shop (Buy is active
+  only when the player can afford the item) and the History. Hovering a `<<` tab opens its drawer, a click
+  pins it open. On a phone (up to 640px wide) the tabs become a bottom tab bar that is tapped.
+- **After Solve or Buy** the outcome also shows in the middle of the screen for 4 seconds, because an open
+  drawer can hide the Last message pane.
+- **While a request runs** its button shows a spinning ring and every action button is disabled, so a double
+  click sends nothing twice. At game over (no lives left, or a game the Mugloar server has forgotten) Solve,
+  Buy, Investigate and Download ads are disabled; the board, shop and history can still be read.
+- **After a reload** the last game comes back: the game ID and the last reputation are kept in the browser
+  (`localStorage`); everything else is loaded again from the API.
+
+The page only shows what the API answers (`solvable`, `affordable`, `warning`, `lifeState`, ...), so no game rule
+is repeated in JavaScript.
 
 ## REST API
 Every button or command in a front end is one HTTP call. The game ID is part of the URL, so the server keeps
@@ -243,8 +293,19 @@ src/main/java/com/akbori/dgtrainapp/
   repository/                     Spring Data repositories
 src/main/resources/data/
   mugloar_schema.sql              DDL to create the database
+src/main/resources/static/        the built web page, from npm run build (not in git)
 data/
   drogontrainapp.db               your local SQLite database (not in git)
+frontend/                         the web page (Vue 3 + Vite)
+  vite.config.js                  build output folder, and the /api proxy for the dev server
+  src/
+    main.js                       starts the Vue app
+    App.vue                       the page layout: header, Player bar, panes, drawers
+    api.js                        one function per REST API endpoint; errors carry the server's detail and code
+    store.js                      the shared game state and the player actions (one reactive object)
+    style.css                     colors, buttons, panes, cards, risk colors, phone helpers
+    components/                   one file per part of the page, e.g. PlayerBar, MessageBoard, AdCard,
+                                  ShopList, HistoryTable, SideTabs, SideDrawer, OutcomeToast, BusyLabel
 ```
 
 ### Database tables

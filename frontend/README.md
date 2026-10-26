@@ -1,5 +1,11 @@
-# Vue 3 + Vite
+# Dragon Trainer web page
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+The Vue 3 + Vite single page application for Dragon Trainer.
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+```bash
+npm install      # once
+npm run dev      # dev server on http://localhost:5173, forwards /api to Spring on port 8080
+npm run build    # builds into ../src/main/resources/static, served by Spring on http://localhost:8080
+```
+
+See the main [README](../README.md) (Running, Web page, Project layout) for how it fits with the Spring app.
