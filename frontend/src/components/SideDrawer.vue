@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { store, drawers, keepDrawerOpen, leaveDrawer, closeDrawer } from '../store.js'
 import MessageBoard from './MessageBoard.vue'
 import ShopList from './ShopList.vue'
+import HistoryTable from './HistoryTable.vue'
 
 const drawer = computed(() => drawers.find((d) => d.key === store.openDrawer))
 
@@ -27,8 +28,7 @@ function onLeave(event) {
 
       <MessageBoard v-if="drawer.key === 'board'" />
       <ShopList v-else-if="drawer.key === 'shop'" />
-      <!-- Filled in by the next step: history (17) -->
-      <p v-else class="muted">The {{ drawer.title.toLowerCase() }} comes here.</p>
+      <HistoryTable v-else-if="drawer.key === 'history'" />
     </aside>
   </Transition>
 </template>
