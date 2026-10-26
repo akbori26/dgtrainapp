@@ -49,7 +49,7 @@ class PlayerStatusRepositoryTest {
         entityManager.flush();
         entityManager.clear();
 
-        // Same read-modify-save sequence the CLI runner uses after solving an ad
+        // Read-modify-save sequence used to update the player after solving an ad
         PlayerStatus status = playerStatusRepository.findById("game-1").orElseThrow();
         status.setLives(2);
         status.setGold(25);
