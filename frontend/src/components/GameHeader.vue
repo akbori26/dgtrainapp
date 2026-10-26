@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted } from 'vue'
 import { store, newGame, resumeGame, loadSavedGame } from '../store.js'
+import BusyLabel from './BusyLabel.vue'
 
 // When the page opens (or is reloaded), come back to the game we were playing.
 onMounted(loadSavedGame)
@@ -16,9 +17,14 @@ onMounted(loadSavedGame)
     </span>
     <span v-else class="muted wide-only">No game yet. Start a new one.</span>
 
+    <!-- Both stay usable at game over (that's when a new game is needed); only a running request blocks them -->
     <div class="header-buttons">
-      <button class="secondary wide-only" @click="resumeGame">Resume</button>
-      <button @click="newGame">New game</button>
+      <button class="secondary wide-only" :disabled="store.busy" @click="resumeGame">
+        <BusyLabel :busy="store.busyAction === 'resume'">Resume</BusyLabel>
+      </button>
+      <button :disabled="store.busy" @click="newGame">
+        <BusyLabel :busy="store.busyAction === 'newGame'">New game</BusyLabel>
+      </button>
     </div>
   </header>
 </template>

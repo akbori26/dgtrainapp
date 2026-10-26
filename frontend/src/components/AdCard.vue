@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
-import { store, selectAd, solveAd } from '../store.js'
+import { store, selectAd, solveAd, canPlay } from '../store.js'
+import BusyLabel from './BusyLabel.vue'
 
 // One ad on the message board. Click it to select it; the selected ad shows a Solve button.
 const props = defineProps({
@@ -44,7 +45,9 @@ function select() {
     <!-- Only on the selected ad, and only while it can still be solved.
          .stop: the click solves, it doesn't also unselect the card. -->
     <div v-if="selected && ad.solvable" class="actions">
-      <button @click.stop="solveAd(ad.adId)">Solve</button>
+      <button :disabled="!canPlay()" @click.stop="solveAd(ad.adId)">
+        <BusyLabel :busy="store.busyAction === 'solve:' + ad.adId">Solve</BusyLabel>
+      </button>
     </div>
   </article>
 </template>

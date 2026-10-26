@@ -23,28 +23,48 @@ export const store = reactive({
   pinned: false, // true when the open drawer was clicked, not just hovered
   selectedAdId: null,
   busy: false, // true while a request is running
+  busyAction: null, // which button started it, e.g. 'investigate' or 'solve:<adId>', so it can show "…"
+  gameLost: false, // true when the Mugloar server no longer knows the game (it forgets old games)
 })
 
+// The Mugloar server's answers that mean the game can't be played any more
+const LOST_GAME_CODES = ['GAME_NOT_FOUND', 'GAME_EXPIRED']
+
 // Runs one request (or a few in a row) for a button.
-// While it runs, `busy` is true so the page can disable its buttons and a double click sends nothing twice.
+// While it runs, `busy` is true so the page can disable its buttons and a double click sends nothing twice;
+// `busyAction` names the button, which shows "…" meanwhile.
 // A failure goes to `lastError`; a success clears the previous error.
-async function run(action) {
+async function run(key, action) {
   if (store.busy) return
   store.busy = true
+  store.busyAction = key
   try {
     await action()
     store.lastError = null
   } catch (error) {
     store.lastError = { message: error.message, code: error.code, status: error.status }
+    if (LOST_GAME_CODES.includes(error.code)) store.gameLost = true
   } finally {
     store.busy = false
+    store.busyAction = null
   }
+}
+
+// Game over: no lives left, or the server has forgotten the game.
+// The board, shop and history can still be read; only the actions stop.
+export function isGameOver() {
+  return store.status?.lifeState === 'GAME_OVER' || store.gameLost
+}
+
+// Solve, Buy, Investigate and Download ads are allowed only with a playable game and no request running
+export function canPlay() {
+  return Boolean(store.gameId) && !store.busy && !isGameOver()
 }
 
 // ---------- Game ----------
 
 export function newGame() {
-  return run(async () => {
+  return run('newGame', async () => {
     showGame(await api.startGame())
     store.lastMessage = { success: true, text: 'A new game has started. Download the ads to begin.' }
     await reloadLists()
@@ -53,7 +73,7 @@ export function newGame() {
 
 // Resumes the last game started (GET /api/games/current).
 export function resumeGame() {
-  return run(async () => {
+  return run('resume', async () => {
     showGame(await api.getCurrentGame())
     await reloadLists()
   })
@@ -62,7 +82,7 @@ export function resumeGame() {
 // On page load: come back to the game saved in this browser, or else to the server's current game.
 // Having no game yet is not an error, so nothing is shown in the error pane then.
 export function loadSavedGame() {
-  return run(async () => {
+  return run('load', async () => {
     const savedId = readSaved(SAVED_GAME_ID)
     let status = null
     if (savedId) {
@@ -86,6 +106,7 @@ function showGame(status) {
     store.history = []
     store.selectedAdId = null
     store.lastMessage = null
+    store.gameLost = false
     const saved = readSaved(SAVED_REPUTATION)
     store.reputation = saved?.gameId === status.gameId ? saved : null
   }
@@ -111,7 +132,7 @@ async function reloadLists() {
 // ---------- Message board ----------
 
 export function downloadAds() {
-  return run(async () => {
+  return run('download', async () => {
     store.ads = await api.refreshAds(store.gameId)
     store.selectedAdId = null
   })
@@ -123,7 +144,7 @@ export function selectAd(adId) {
 }
 
 export function solveAd(adId) {
-  return run(async () => {
+  return run('solve:' + adId, async () => {
     const { outcome, status } = await api.solveAd(store.gameId, adId)
     store.status = status
     store.selectedAdId = null
@@ -138,7 +159,7 @@ export function solveAd(adId) {
 // ---------- Reputation ----------
 
 export function investigate() {
-  return run(async () => {
+  return run('investigate', async () => {
     const { outcome, status } = await api.investigate(store.gameId)
     store.status = status
     store.reputation = { gameId: store.gameId, turn: status.turn, ...outcome }
@@ -151,13 +172,13 @@ export function investigate() {
 // ---------- Shop ----------
 
 export function loadShop() {
-  return run(async () => {
+  return run('shop', async () => {
     store.shop = await api.getShop(store.gameId)
   })
 }
 
 export function buyItem(itemId) {
-  return run(async () => {
+  return run('buy:' + itemId, async () => {
     const { outcome, status } = await api.buyItem(store.gameId, itemId)
     store.status = status
     // The server's message already names the cost: "Bought Healing potion for 50 gold"

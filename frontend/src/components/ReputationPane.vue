@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
-import { store, investigate } from '../store.js'
+import { store, investigate, canPlay } from '../store.js'
+import BusyLabel from './BusyLabel.vue'
 
 // The three groups the server reports, in the order they are shown
 const groups = [
@@ -42,7 +43,9 @@ function colorClass(value) {
         <template v-else>Not checked yet.</template>
         Investigating costs a turn.
       </span>
-      <button :disabled="!store.gameId" @click="investigate">Investigate</button>
+      <button :disabled="!canPlay()" @click="investigate">
+        <BusyLabel :busy="store.busyAction === 'investigate'">Investigate</BusyLabel>
+      </button>
     </div>
   </section>
 </template>

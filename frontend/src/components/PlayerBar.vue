@@ -1,8 +1,13 @@
 <script setup>
 import { computed } from 'vue'
-import { store } from '../store.js'
+import { store, isGameOver } from '../store.js'
 
-const gameOver = computed(() => store.status?.lifeState === 'GAME_OVER')
+const gameOver = computed(() => Boolean(store.status) && isGameOver())
+
+// No lives left: the server's own warning. A game the server forgot has lives, so it gets its own text.
+const gameOverText = computed(() =>
+  store.gameLost ? 'This game has expired on the server. Start a new game.' : store.status.warning,
+)
 
 // One heart per life. Healing potions can add lives, so very many are shown as a number only.
 const hearts = computed(() => {
@@ -38,7 +43,7 @@ const hearts = computed(() => {
     </div>
 
     <!-- The server sends the warning text: 1 life left, or game over -->
-    <p v-if="gameOver" class="game-over-text">💀 GAME OVER: {{ store.status.warning }}</p>
+    <p v-if="gameOver" class="game-over-text">💀 GAME OVER: {{ gameOverText }}</p>
     <p v-else-if="store.status?.warning" class="warning">⚠️ {{ store.status.warning }}</p>
   </section>
 </template>

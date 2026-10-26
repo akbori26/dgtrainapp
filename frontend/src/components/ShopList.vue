@@ -5,10 +5,17 @@ import ShopItem from './ShopItem.vue'
 
 // The shop is loaded the first time the drawer opens for a game (the server downloads it once per game).
 // After that, every action reloads it, so `affordable` follows the gold.
+// If another request is running when the drawer opens, it loads as soon as that one ends.
+// It is tried once per game, so a failed load (the error is shown) doesn't repeat endlessly.
+let triedGameId = null
+
 watch(
-  () => store.gameId,
-  (gameId) => {
-    if (gameId && !store.shop.length) loadShop()
+  () => [store.gameId, store.busy],
+  () => {
+    if (store.gameId && !store.busy && !store.shop.length && triedGameId !== store.gameId) {
+      triedGameId = store.gameId
+      loadShop()
+    }
   },
   { immediate: true },
 )

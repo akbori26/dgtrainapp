@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
-import { store, buyItem } from '../store.js'
+import { store, buyItem, canPlay } from '../store.js'
+import BusyLabel from './BusyLabel.vue'
 
 // One item in the shop. The server decides `affordable`; we only show how much gold is missing.
 const props = defineProps({
@@ -19,7 +20,9 @@ const missingGold = computed(() => props.item.cost - (store.status?.gold ?? 0))
     </div>
 
     <div class="buy">
-      <button :disabled="!item.affordable" @click="buyItem(item.itemId)">Buy</button>
+      <button :disabled="!item.affordable || !canPlay()" @click="buyItem(item.itemId)">
+        <BusyLabel :busy="store.busyAction === 'buy:' + item.itemId">Buy</BusyLabel>
+      </button>
       <span v-if="!item.affordable && missingGold > 0" class="missing">you need {{ missingGold }} more gold</span>
     </div>
   </article>
