@@ -4,30 +4,36 @@ import com.akbori.dgtrainapp.dto.AdItem;
 import com.akbori.dgtrainapp.dto.GameStartResponse;
 import com.akbori.dgtrainapp.dto.ReputationResponse;
 import com.akbori.dgtrainapp.dto.SolutionResponse;
+import com.akbori.dgtrainapp.dto.TradeResponse;
+import com.akbori.dgtrainapp.service.api.MugloarApiException;
+import com.akbori.dgtrainapp.service.api.MugloarError;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.restclient.test.autoconfigure.RestClientTest;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 @RestClientTest(MugloarService.class)
-@ExtendWith(OutputCaptureExtension.class)
 class MugloarServiceTest {
+
+    private static final String BASE_URL = "https://dragonsofmugloar.com/api/v2";
 
     @Autowired
     private MugloarService mugloarService;
@@ -35,10 +41,20 @@ class MugloarServiceTest {
     @Autowired
     private MockRestServiceServer server;
 
+    // Runs the call and checks it failed with the given reason and a message containing the given text
+    private void assertFails(ThrowingCallable call, MugloarError error, String expectedMessage) {
+        assertThatThrownBy(call)
+                .isInstanceOf(MugloarApiException.class)
+                .hasMessageContaining(expectedMessage)
+                .satisfies(e -> assertThat(((MugloarApiException) e).getError()).isEqualTo(error));
+        server.verify();
+    }
+
     @Test
     void startNewGameReturnsParsedGameSession() {
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/game/start"))
+        server.expect(requestTo(BASE_URL + "/game/start"))
                 .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Content-Type", MediaType.APPLICATION_JSON_VALUE))
                 .andRespond(withSuccess("""
                         {"gameId":"abc123","lives":3,"gold":0,"level":0,
                          "score":0,"highScore":0,"turn":0}
@@ -53,59 +69,79 @@ class MugloarServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-            "500, Mugloar server error (500) while starting a new game",
-            "503, Mugloar server error (503) while starting a new game",
-            "400, Unexpected response (400) while starting a new game"
+            "500, SERVER_ERROR, Mugloar server error (500) while starting a new game.",
+            "503, SERVER_ERROR, Mugloar server error (503) while starting a new game.",
+            "400, BAD_REQUEST, Bad request while starting a new game.",
+            "418, UNEXPECTED_STATUS, Unexpected response (418) while starting a new game."
     })
-    void startNewGameReturnsNullOnErrorStatus(int status, String expectedLog, CapturedOutput output) {
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/game/start"))
-                .andExpect(method(HttpMethod.POST))
+    void startNewGameThrowsOnErrorStatus(int status, MugloarError error, String expectedMessage) {
+        server.expect(requestTo(BASE_URL + "/game/start"))
                 .andRespond(withStatus(HttpStatus.valueOf(status)));
 
-        assertThat(mugloarService.startNewGame()).isNull();
-        assertThat(output).contains(expectedLog);
-        server.verify();
+        assertFails(() -> mugloarService.startNewGame(), error, expectedMessage);
     }
 
     @Test
-    void startNewGameReturnsNullWhenBodyHasNoGameId(CapturedOutput output) {
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/game/start"))
-                .andExpect(method(HttpMethod.POST))
+    void startNewGameThrowsWhenBodyHasNoGameId() {
+        server.expect(requestTo(BASE_URL + "/game/start"))
                 .andRespond(withSuccess("""
                         {"lives":3,"gold":0,"level":0,"score":0,"highScore":0,"turn":0}
                         """, MediaType.APPLICATION_JSON));
 
-        assertThat(mugloarService.startNewGame()).isNull();
-        assertThat(output).contains("did not return a game ID");
-        server.verify();
+        assertFails(() -> mugloarService.startNewGame(), MugloarError.MISSING_GAME_ID, "did not return a game ID");
+    }
+
+    @Test
+    void networkFailureIsReportedAsNetworkUnavailable() {
+        server.expect(requestTo(BASE_URL + "/game/start"))
+                .andRespond(withException(new IOException("Connection refused")));
+
+        assertFails(() -> mugloarService.startNewGame(), MugloarError.NETWORK_UNAVAILABLE,
+                "Could not reach the Mugloar server while starting a new game");
+    }
+
+    @Test
+    void unreadableBodyIsReportedAsUnreadableResponse() {
+        server.expect(requestTo(BASE_URL + "/abc123/solve/XFyAyerI"))
+                .andRespond(withSuccess("not json", MediaType.APPLICATION_JSON));
+
+        assertFails(() -> mugloarService.solveAd("abc123", "XFyAyerI"), MugloarError.UNREADABLE_RESPONSE,
+                "could not be read while solving ad XFyAyerI");
+    }
+
+    @Test
+    void errorKeepsTheServerStatus() {
+        server.expect(requestTo(BASE_URL + "/abc123/shop"))
+                .andRespond(withStatus(HttpStatus.GONE));
+
+        assertThatThrownBy(() -> mugloarService.getMarketItems("abc123"))
+                .isInstanceOfSatisfying(MugloarApiException.class, e -> {
+                    assertThat(e.getStatusCode()).isEqualTo(410);
+                    assertThat(e.getError().getResponseStatus()).isEqualTo(HttpStatus.GONE);
+                });
     }
 
     @ParameterizedTest
     @CsvSource({
-            "400, Bad request while fetching the shop/market items",
-            "404, Game not found or already over",
-            "410, Game session has expired",
-            "500, Mugloar server error (500) while fetching the shop items",
-            "418, Unexpected response (418) while fetching the shop items"
+            "400, BAD_REQUEST, Bad request while fetching the shop items for game abc123",
+            "404, GAME_NOT_FOUND, Game abc123 was not found or is already over",
+            "410, GAME_EXPIRED, Game abc123 has expired",
+            "500, SERVER_ERROR, Mugloar server error (500) while fetching the shop items",
+            "418, UNEXPECTED_STATUS, Unexpected response (418) while fetching the shop items"
     })
-    void getMarketItemsReturnsEmptyListOnErrorStatus(int status, String expectedLog, CapturedOutput output) {
-        String gameId = "abc123";
-
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/" + gameId + "/shop"))
+    void getMarketItemsThrowsOnErrorStatus(int status, MugloarError error, String expectedMessage) {
+        server.expect(requestTo(BASE_URL + "/abc123/shop"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withStatus(HttpStatus.valueOf(status)));
 
-        assertThat(mugloarService.getMarketItems(gameId)).isEmpty();
-        assertThat(output).contains(expectedLog).doesNotContain("message board");
-        server.verify();
+        assertFails(() -> mugloarService.getMarketItems("abc123"), error, expectedMessage);
     }
 
-
     @Test
-    void getMessageBoardReturnsParsedBoardOfMessages(){
+    void getMessageBoardReturnsParsedBoardOfMessages() {
         String gameId = "abc123";
 
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/" + gameId + "/messages"))
+        server.expect(requestTo(BASE_URL + "/" + gameId + "/messages"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("""
                         [{"adId":"XFyAyerI",
@@ -121,11 +157,20 @@ class MugloarServiceTest {
     }
 
     @Test
+    void getMessageBoardReturnsEmptyListForAnEmptyBody() {
+        server.expect(requestTo(BASE_URL + "/abc123/messages"))
+                .andRespond(withSuccess());
+
+        assertThat(mugloarService.getMessageBoard("abc123")).isEmpty();
+        server.verify();
+    }
+
+    @Test
     void getMessageBoardDecodesBase64AndRot13Ads() {
         String gameId = "abc123";
 
         // encrypted arrives as a JSON number: 1 = Base64, 2 = ROT13
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/" + gameId + "/messages"))
+        server.expect(requestTo(BASE_URL + "/" + gameId + "/messages"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("""
                         [{"adId":"WEZ5QXllckk=","message":"U3RlYWwgc3VwZXIgYXdlc29tZSBkaWFtb25k",
@@ -157,26 +202,19 @@ class MugloarServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-            "400, Bad request while fetching the message board",
-            "404, Game not found or already over",
-            "410, Game session has expired",
-            "500, Mugloar server error (500)",
-            "503, Mugloar server error (503)",
-            "418, Unexpected response (418)"
+            "400, BAD_REQUEST, Bad request while fetching the message board for game abc123",
+            "404, GAME_NOT_FOUND, Game abc123 was not found or is already over",
+            "410, GAME_EXPIRED, Game abc123 has expired",
+            "500, SERVER_ERROR, Mugloar server error (500) while fetching the message board",
+            "503, SERVER_ERROR, Mugloar server error (503) while fetching the message board",
+            "418, UNEXPECTED_STATUS, Unexpected response (418) while fetching the message board"
     })
-    void getMessageBoardReturnsEmptyListOnErrorStatus(int status, String expectedLog, CapturedOutput output) {
-        String gameId = "abc123";
-
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/" + gameId + "/messages"))
+    void getMessageBoardThrowsOnErrorStatus(int status, MugloarError error, String expectedMessage) {
+        server.expect(requestTo(BASE_URL + "/abc123/messages"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withStatus(HttpStatus.valueOf(status)));
 
-        List<AdItem> messages = mugloarService.getMessageBoard(gameId);
-
-        assertThat(messages).isEmpty();
-        assertThat(output).contains(expectedLog);
-        server.verify();
-
+        assertFails(() -> mugloarService.getMessageBoard("abc123"), error, expectedMessage);
     }
 
     @Test
@@ -184,7 +222,7 @@ class MugloarServiceTest {
         String gameId = "abc123";
         String adId = "XFyAyerI";
 
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/" + gameId + "/solve/" + adId))
+        server.expect(requestTo(BASE_URL + "/" + gameId + "/solve/" + adId))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess("""
                         {"success":true,"lives":3,"gold":13,"score":10,
@@ -202,33 +240,26 @@ class MugloarServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-            "400, Ad XFyAyerI could not be solved (unknown or already expired)",
-            "404, Game not found or already over",
-            "410, Game session has expired",
-            "500, Mugloar server error (500) while solving ad XFyAyerI",
-            "503, Mugloar server error (503) while solving ad XFyAyerI",
-            "418, Unexpected response (418) while solving ad XFyAyerI"
+            "400, BAD_REQUEST, Ad XFyAyerI could not be solved (unknown or already expired) for game abc123",
+            "404, GAME_NOT_FOUND, Game abc123 was not found or is already over",
+            "410, GAME_EXPIRED, Game abc123 has expired",
+            "500, SERVER_ERROR, Mugloar server error (500) while solving ad XFyAyerI",
+            "503, SERVER_ERROR, Mugloar server error (503) while solving ad XFyAyerI",
+            "418, UNEXPECTED_STATUS, Unexpected response (418) while solving ad XFyAyerI"
     })
-    void solveAdReturnsNullOnErrorStatus(int status, String expectedLog, CapturedOutput output) {
-        String gameId = "abc123";
-        String adId = "XFyAyerI";
-
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/" + gameId + "/solve/" + adId))
+    void solveAdThrowsOnErrorStatus(int status, MugloarError error, String expectedMessage) {
+        server.expect(requestTo(BASE_URL + "/abc123/solve/XFyAyerI"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.valueOf(status)));
 
-        SolutionResponse response = mugloarService.solveAd(gameId, adId);
-
-        assertThat(response).isNull();
-        assertThat(output).contains(expectedLog);
-        server.verify();
+        assertFails(() -> mugloarService.solveAd("abc123", "XFyAyerI"), error, expectedMessage);
     }
 
     @Test
     void investigateReputationReturnsParsedReputationResponse() {
         String gameId = "abc123";
 
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/" + gameId + "/investigate/reputation"))
+        server.expect(requestTo(BASE_URL + "/" + gameId + "/investigate/reputation"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess("""
                         {"people":1.5,"state":-2.0,"underworld":0.25}
@@ -244,25 +275,50 @@ class MugloarServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-            "400, Bad request while investigating reputation for game: abc123",
-            "404, Game not found or already over: abc123",
-            "410, Game session has expired: abc123",
-            "500, Mugloar server error (500) while investigating reputation",
-            "503, Mugloar server error (503) while investigating reputation",
-            "418, Unexpected response (418) while investigating reputation"
+            "400, BAD_REQUEST, Bad request while investigating reputation for game abc123",
+            "404, GAME_NOT_FOUND, Game abc123 was not found or is already over",
+            "410, GAME_EXPIRED, Game abc123 has expired",
+            "500, SERVER_ERROR, Mugloar server error (500) while investigating reputation",
+            "503, SERVER_ERROR, Mugloar server error (503) while investigating reputation",
+            "418, UNEXPECTED_STATUS, Unexpected response (418) while investigating reputation"
     })
-    void investigateReputationReturnsNullOnErrorStatus(int status, String expectedLog, CapturedOutput output) {
-        String gameId = "abc123";
-
-        server.expect(requestTo("https://dragonsofmugloar.com/api/v2/" + gameId + "/investigate/reputation"))
+    void investigateReputationThrowsOnErrorStatus(int status, MugloarError error, String expectedMessage) {
+        server.expect(requestTo(BASE_URL + "/abc123/investigate/reputation"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.valueOf(status)));
 
-        ReputationResponse response = mugloarService.investigateReputation(gameId);
+        assertFails(() -> mugloarService.investigateReputation("abc123"), error, expectedMessage);
+    }
 
-        assertThat(response).isNull();
-        assertThat(output).contains(expectedLog);
+    @Test
+    void buyItemReturnsParsedTradeResponse() {
+        server.expect(requestTo(BASE_URL + "/abc123/shop/buy/hpot"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"shoppingSuccess":true,"gold":50,"lives":4,"level":1,"turn":3}
+                        """, MediaType.APPLICATION_JSON));
+
+        TradeResponse response = mugloarService.buyItem("abc123", "hpot");
+
+        assertThat(response.shoppingSuccess()).isTrue();
+        assertThat(response.lives()).isEqualTo(4);
+        assertThat(response.level()).isEqualTo(1);
         server.verify();
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "400, BAD_REQUEST, Item hpot could not be bought for game abc123",
+            "404, GAME_NOT_FOUND, Game abc123 was not found or is already over",
+            "410, GAME_EXPIRED, Game abc123 has expired",
+            "502, SERVER_ERROR, Mugloar server error (502) while buying item hpot",
+            "418, UNEXPECTED_STATUS, Unexpected response (418) while buying item hpot"
+    })
+    void buyItemThrowsOnErrorStatus(int status, MugloarError error, String expectedMessage) {
+        server.expect(requestTo(BASE_URL + "/abc123/shop/buy/hpot"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
+
+        assertFails(() -> mugloarService.buyItem("abc123", "hpot"), error, expectedMessage);
+    }
 }

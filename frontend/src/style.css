@@ -1,0 +1,220 @@
+/* Styles shared by the whole page. Each component keeps only its own layout. */
+
+/* ---------- Colors ----------
+   Every color is a variable, so a component writes var(--gold) instead of a hex code,
+   and dark mode only has to change the variables. */
+:root {
+  --bg: #f4f1ea;
+  --surface: #ffffff;
+  --text: #2b2620;
+  --muted: #7a7166;
+  --border: #ddd5c8;
+
+  --primary: #8b3a1e; /* dragon red: main buttons, selected ad */
+  --primary-text: #ffffff;
+  --gold: #b8860b;
+  --life: #d0312d;
+  --success: #2e7d32;
+  --danger: #c62828;
+  --danger-bg: #fdecea;
+  --warning: #8a6d00;
+  --warning-bg: #fff6d6;
+
+  /* Risk colors, one per RiskCategory from the API (risk.code) */
+  --risk-safe: #2e7d32;
+  --risk-likely: #b59a00;
+  --risk-gamble: #6a4fb3;
+  --risk-risky: #e07000;
+  --risk-dangerous: #c62828;
+  --risk-fatal: #3a3a3a;
+  --risk-unknown: #8a8a8a;
+
+  --radius: 8px;
+  --shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1a17;
+    --surface: #2a2723;
+    --text: #ece6dc;
+    --muted: #a39a8e;
+    --border: #3f3a33;
+
+    --primary: #c4552e;
+    --gold: #e0b341;
+    --life: #ff6b66;
+    --success: #66bb6a;
+    --danger: #ef5350;
+    --danger-bg: #3b1f1d;
+    --warning: #f0cf5a;
+    --warning-bg: #3a3218;
+
+    --risk-safe: #66bb6a;
+    --risk-likely: #e0c341;
+    --risk-gamble: #a08ae6;
+    --risk-risky: #ff9a3c;
+    --risk-dangerous: #ef5350;
+    --risk-fatal: #bdbdbd;
+    --risk-unknown: #9e9e9e;
+
+    --shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  }
+}
+
+/* ---------- Page ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* ---------- Buttons ---------- */
+button {
+  font: inherit;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--primary-text);
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* A quieter button, e.g. Resume, Dismiss or the ✕ of a drawer */
+button.secondary {
+  background: transparent;
+  color: var(--primary);
+}
+
+/* Disabled: greyed out and not clickable (game over, can't afford, a request is running) */
+button:disabled {
+  border-color: var(--border);
+  background: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* ---------- Panes ----------
+   <section class="pane"><h2 class="pane-title">Reputation</h2> ... </section> */
+.pane {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.75rem 1rem;
+}
+
+.pane-title {
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pane.error {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* ---------- Cards (ads and shop items) ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.card.selectable {
+  cursor: pointer;
+}
+
+.card.selectable:hover {
+  border-color: var(--primary);
+}
+
+.card.selected {
+  border: 2px solid var(--primary);
+  box-shadow: var(--shadow);
+}
+
+/* Used or expired ads, items the player can't afford */
+.card.greyed {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- Risk badge ----------
+   <span :class="['risk', 'risk-' + ad.risk.code]">{{ ad.risk.icon }} {{ ad.risk.label }}</span> */
+.risk {
+  font-weight: 600;
+}
+
+.risk-SAFE { color: var(--risk-safe); }
+.risk-LIKELY { color: var(--risk-likely); }
+.risk-GAMBLE { color: var(--risk-gamble); }
+.risk-RISKY { color: var(--risk-risky); }
+.risk-DANGEROUS { color: var(--risk-dangerous); }
+.risk-FATAL { color: var(--risk-fatal); }
+.risk-UNKNOWN { color: var(--risk-unknown); }
+
+/* ---------- Text helpers ---------- */
+.muted { color: var(--muted); }
+.gold { color: var(--gold); font-weight: 600; }
+.plus { color: var(--success); } /* +25 gold, a positive reputation */
+.minus { color: var(--danger); } /* -50 gold, a negative reputation */
+
+.warning {
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+/* ---------- Phone ----------
+   Up to 640px wide the page uses the phone layout (each component has its own @media block with the same width).
+   .wide-only hides text a phone has no room for; .phone-only shows text only on a phone. */
+.phone-only {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .wide-only {
+    display: none;
+  }
+
+  .phone-only {
+    display: inline;
+  }
+}

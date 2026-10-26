@@ -1,6 +1,9 @@
 # Build output
 target/
 
+# The built web page (npm run build in frontend/); Spring Boot serves it from here
+src/main/resources/static/
+
 # Local SQLite databases (each checkout creates its own, see README)
 data/*.db
 
