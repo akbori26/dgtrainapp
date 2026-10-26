@@ -1,0 +1,13 @@
+# Build output
+target/
+
+# Local SQLite databases (each checkout creates its own, see README)
+data/*.db
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
