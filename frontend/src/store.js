@@ -18,6 +18,7 @@ export const store = reactive({
   history: [], // HistoryEntryView list, newest first
   reputation: null, // { gameId, turn, people, state, underworld }
   lastMessage: null, // { success, text } of the latest action
+  outcome: null, // { id, success, text } of the latest Solve or Buy, shown for a moment in the middle of the screen
   lastError: null, // { message, code, status } of the latest failed request
   openDrawer: null, // 'board', 'shop', 'history' or null
   pinned: false, // true when the open drawer was clicked, not just hovered
@@ -106,6 +107,7 @@ function showGame(status) {
     store.history = []
     store.selectedAdId = null
     store.lastMessage = null
+    store.outcome = null
     store.gameLost = false
     const saved = readSaved(SAVED_REPUTATION)
     store.reputation = saved?.gameId === status.gameId ? saved : null
@@ -152,6 +154,7 @@ export function solveAd(adId) {
       success: outcome.success,
       text: outcome.success ? `${outcome.message} +${outcome.reward} gold` : outcome.message,
     }
+    showOutcome()
     await reloadLists()
   })
 }
@@ -183,6 +186,7 @@ export function buyItem(itemId) {
     store.status = status
     // The server's message already names the cost: "Bought Healing potion for 50 gold"
     store.lastMessage = { success: outcome.success, text: outcome.message }
+    showOutcome()
     await reloadLists()
   })
 }
@@ -234,6 +238,21 @@ export function closeDrawer() {
   clearTimeout(closeTimer)
   store.openDrawer = null
   store.pinned = false
+}
+
+// ---------- Outcome card ----------
+// After a Solve or Buy the Last message pane may be hidden under a drawer, so the same text also
+// shows for a moment in the middle of the screen (OutcomeToast). Errors stay in the error pane only.
+// Each outcome gets a new id, so the card starts again even when the text is the same as last time.
+let outcomeCount = 0
+
+function showOutcome() {
+  outcomeCount++
+  store.outcome = { id: outcomeCount, ...store.lastMessage }
+}
+
+export function closeOutcome() {
+  store.outcome = null
 }
 
 // ---------- Errors ----------

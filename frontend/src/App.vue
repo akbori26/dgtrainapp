@@ -8,6 +8,7 @@ import ReputationPane from './components/ReputationPane.vue'
 import ErrorPane from './components/ErrorPane.vue'
 import SideTabs from './components/SideTabs.vue'
 import SideDrawer from './components/SideDrawer.vue'
+import OutcomeToast from './components/OutcomeToast.vue'
 </script>
 
 <template>
@@ -32,6 +33,9 @@ import SideDrawer from './components/SideDrawer.vue'
 
       <SideTabs />
     </div>
+
+    <!-- The result of a Solve or Buy, shown for a moment in the middle of the screen -->
+    <OutcomeToast />
   </div>
 </template>
 
