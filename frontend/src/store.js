@@ -117,8 +117,9 @@ export function downloadAds() {
   })
 }
 
+// Clicking the selected ad again unselects it
 export function selectAd(adId) {
-  store.selectedAdId = adId
+  store.selectedAdId = store.selectedAdId === adId ? null : adId
 }
 
 export function solveAd(adId) {
