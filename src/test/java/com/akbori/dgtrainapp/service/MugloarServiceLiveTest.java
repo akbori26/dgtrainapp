@@ -6,14 +6,14 @@ import com.akbori.dgtrainapp.dto.ReputationResponse;
 import com.akbori.dgtrainapp.dto.ShopItem;
 import com.akbori.dgtrainapp.dto.SolutionResponse;
 import com.akbori.dgtrainapp.dto.TradeResponse;
+import com.akbori.dgtrainapp.service.api.MugloarApiException;
+import com.akbori.dgtrainapp.service.api.MugloarError;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
@@ -21,6 +21,7 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Calls the real Dragons of Mugloar server, so it needs network access.
@@ -28,13 +29,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * and the tests never depend on a stored game ID.
  */
 @Tag("live")
-@ExtendWith(OutputCaptureExtension.class)
 class MugloarServiceLiveTest {
 
     private static final String BASE_URL = "https://dragonsofmugloar.com/api/v2";
     // The server has been seen answering an unknown game ID with either 400 or 404
     private static final String UNKNOWN_GAME_ID = "noSuchGame";
-    private static final String GAME_NOT_FOUND = "Game not found or already over: " + UNKNOWN_GAME_ID;
 
     private MugloarService mugloarService;
     private RestClient rawClient;
@@ -216,37 +215,18 @@ class MugloarServiceLiveTest {
     }
 
     @Test
-    void getMessageBoardReturnsEmptyListForUnknownGame(CapturedOutput output) {
-        assertThat(mugloarService.getMessageBoard(UNKNOWN_GAME_ID)).isEmpty();
-        assertThat(output.getOut()).containsAnyOf(
-                "Bad request while fetching the message board for game: " + UNKNOWN_GAME_ID, GAME_NOT_FOUND);
+    void everyServiceCallThrowsForUnknownGame() {
+        assertRejectsUnknownGame(() -> mugloarService.getMessageBoard(UNKNOWN_GAME_ID));
+        assertRejectsUnknownGame(() -> mugloarService.solveAd(UNKNOWN_GAME_ID, "abc"));
+        assertRejectsUnknownGame(() -> mugloarService.investigateReputation(UNKNOWN_GAME_ID));
+        assertRejectsUnknownGame(() -> mugloarService.getMarketItems(UNKNOWN_GAME_ID));
+        assertRejectsUnknownGame(() -> mugloarService.buyItem(UNKNOWN_GAME_ID, "hpot"));
     }
 
-    @Test
-    void solveAdReturnsNullForUnknownGame(CapturedOutput output) {
-        assertThat(mugloarService.solveAd(UNKNOWN_GAME_ID, "abc")).isNull();
-        assertThat(output.getOut()).containsAnyOf(
-                "Ad abc could not be solved (unknown or already expired) for game: " + UNKNOWN_GAME_ID, GAME_NOT_FOUND);
-    }
-
-    @Test
-    void investigateReputationReturnsNullForUnknownGame(CapturedOutput output) {
-        assertThat(mugloarService.investigateReputation(UNKNOWN_GAME_ID)).isNull();
-        assertThat(output.getOut()).containsAnyOf(
-                "Bad request while investigating reputation for game: " + UNKNOWN_GAME_ID, GAME_NOT_FOUND);
-    }
-
-    @Test
-    void getMarketItemsReturnsEmptyListForUnknownGame(CapturedOutput output) {
-        assertThat(mugloarService.getMarketItems(UNKNOWN_GAME_ID)).isEmpty();
-        assertThat(output.getOut()).containsAnyOf(
-                "Bad request while fetching the shop/market items for game: " + UNKNOWN_GAME_ID, GAME_NOT_FOUND);
-    }
-
-    @Test
-    void buyItemReturnsNullForUnknownGame(CapturedOutput output) {
-        assertThat(mugloarService.buyItem(UNKNOWN_GAME_ID, "hpot")).isNull();
-        assertThat(output.getOut()).containsAnyOf(
-                "Item hpot could not be bought for game: " + UNKNOWN_GAME_ID, GAME_NOT_FOUND);
+    private static void assertRejectsUnknownGame(ThrowingCallable call) {
+        assertThatThrownBy(call)
+                .isInstanceOfSatisfying(MugloarApiException.class, e ->
+                        assertThat(e.getError()).isIn(MugloarError.BAD_REQUEST, MugloarError.GAME_NOT_FOUND))
+                .hasMessageContaining(UNKNOWN_GAME_ID);
     }
 }

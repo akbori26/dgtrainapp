@@ -2,6 +2,7 @@ package com.akbori.dgtrainapp.repository;
 
 import com.akbori.dgtrainapp.model.EntryType;
 import com.akbori.dgtrainapp.model.MissionLog;
+import com.akbori.dgtrainapp.model.RiskCategory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -27,11 +28,11 @@ class MissionLogRepositoryTest {
     @Test
     void findByGameIdOrderByIdDescReturnsOnlyThatGamesLogsNewestFirst() {
         MissionLog first = missionLogRepository.save(
-                new MissionLog("game-1", "ad-1", 10, "Low", true, "You successfully solved the mission!"));
+                new MissionLog("game-1", "ad-1", 10, RiskCategory.SAFE, true, "You successfully solved the mission!"));
         MissionLog second = missionLogRepository.save(
-                new MissionLog("game-1", "ad-2", 25, "High", false, "You were defeated"));
+                new MissionLog("game-1", "ad-2", 25, RiskCategory.FATAL, false, "You were defeated"));
         missionLogRepository.save(
-                new MissionLog("game-2", "ad-3", 5, "Low", true, "Another game's mission"));
+                new MissionLog("game-2", "ad-3", 5, RiskCategory.SAFE, true, "Another game's mission"));
 
         List<MissionLog> logs = missionLogRepository.findByGameIdOrderByIdDesc("game-1");
 
@@ -44,7 +45,7 @@ class MissionLogRepositoryTest {
 
     @Test
     void entryTypeIsStoredAndMissionIsTheDefault() {
-        missionLogRepository.save(new MissionLog("game-3", "ad-1", 20, "🟢 SAFE", true, "Mission done"));
+        missionLogRepository.save(new MissionLog("game-3", "ad-1", 20, RiskCategory.SAFE, true, "Mission done"));
         missionLogRepository.save(new MissionLog(EntryType.PURCHASE, "game-3", "hpot", 50, null, true, "Bought Healing potion for 50 gold"));
 
         List<MissionLog> logs = missionLogRepository.findByGameIdOrderByIdDesc("game-3");

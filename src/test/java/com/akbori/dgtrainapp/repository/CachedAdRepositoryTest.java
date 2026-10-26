@@ -30,7 +30,7 @@ class CachedAdRepositoryTest {
 
     private static CachedAd cachedAd(String gameId, int displayIndex, String adId) {
         AdItem ad = new AdItem(adId, "Help defend the village", 10, 7, null, "Sure thing");
-        return new CachedAd(gameId, displayIndex, ad, "Low", 0);
+        return new CachedAd(gameId, displayIndex, ad, 0);
     }
 
     @Test
