@@ -1,150 +1,149 @@
 package com.akbori.dgtrainapp.service;
 
-/*
-    Implement
-        startGame() , investigateReputation()
-    logic sequence using RestClient.
-    The client automatically reads the server's response body directly into your structural Java Record schema object.
-
-*/
 import com.akbori.dgtrainapp.dto.*;
+import com.akbori.dgtrainapp.service.api.MugloarApiException;
+import com.akbori.dgtrainapp.service.api.MugloarOperation;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClient.RequestHeadersSpec.ConvertibleClientHttpResponse;
+import org.springframework.web.client.RestClientException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static com.akbori.dgtrainapp.service.api.MugloarOperation.*;
+
+/**
+ * Calls the Mugloar REST API. Every call goes through execute(), so a failure is always reported
+ * the same way: as a MugloarApiException with the reason and a message for the player.
+ */
 @Service
 public class MugloarService {
+
+    private static final ParameterizedTypeReference<List<AdItem>> AD_LIST = new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<ShopItem>> SHOP_LIST = new ParameterizedTypeReference<>() {};
 
     private final RestClient restClient;
 
     public MugloarService(RestClient.Builder builder) {
         this.restClient = builder
                 .baseUrl("https://dragonsofmugloar.com/api/v2")
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
 
     /**
-     * Sends a POST request to start a new game loop.
-     * If the return message is other than success, or the body has no gameId,
-     * it just writes the information to the console.
+     * Starts a new game.
      *
-     * @return GameStartResponse with the new gameId, or null if the request did not succeed
+     * @return The new game's ID and starting state
+     * @throws MugloarApiException if the call fails or the response has no game ID
      */
     public GameStartResponse startNewGame() {
-        // exchange() hands us the raw response so the status is checked before any body mapping
-        GameStartResponse response = restClient.post()
-                .uri("/game/start")
-                .header(HttpHeaders.CONTENT_TYPE, "application/json") // 2. Headers
-                .exchange((request, res) -> {
-                    HttpStatusCode status = res.getStatusCode();
-
-                    if (status.value() == 200) {
-                        return res.bodyTo(GameStartResponse.class);
-                    }
-
-                    if (status.is5xxServerError()) {
-                        System.out.println("❌ Mugloar server error (" + status.value() + ") while starting a new game.");
-                    } else {
-                        System.out.println("❌ Unexpected response (" + status.value() + ") while starting a new game.");
-                    }
-                    return null;
-                });
-
-        if (response != null && response.gameId() == null) {
-            System.out.println("❌ The server did not return a game ID for the new game.");
-            return null;
-        }
+        GameStartResponse response = execute(START_GAME, restClient.post().uri("/game/start"), GameStartResponse.class);
+        if (response == null || response.gameId() == null) throw MugloarApiException.missingGameId();
         return response;
     }
 
-
-
-
     /**
-     * Executes API call to investigate the dragon's reputation:
-     * Sends a POST message to retrieve the reputation with the people, the state and the underworld.
-     * If the return message is other than success it just writes the information to the console.
+     * Investigates the dragon's reputation with the people, the state and the underworld. Costs a turn.
      *
-     * @param gameId Active session ID token
-     * @return ReputationResponse, or null if the request did not succeed
+     * @param gameId Active game ID
+     * @throws MugloarApiException if the call fails
      */
     public ReputationResponse investigateReputation(String gameId) {
-        // exchange() hands us the raw response so the status is checked before any body mapping
-        return restClient.post()
-                .uri("/{gameId}/investigate/reputation", gameId)
-                .header(HttpHeaders.CONTENT_TYPE, "application/json")
-                .exchange((request, response) -> {
-                    HttpStatusCode status = response.getStatusCode();
-
-                    if (status.value() == 200) {
-                        return response.bodyTo(ReputationResponse.class);
-                    }
-
-                    switch (status.value()) {
-                        case 400 -> System.out.println("❌ Bad request while investigating reputation for game: " + gameId);
-                        case 404 -> System.out.println("❌ Game not found or already over: " + gameId);
-                        case 410 -> System.out.println("❌ Game session has expired: " + gameId);
-                        default -> {
-                            if (status.is5xxServerError()) {
-                                System.out.println("❌ Mugloar server error (" + status.value() + ") while investigating reputation.");
-                            } else {
-                                System.out.println("❌ Unexpected response (" + status.value() + ") while investigating reputation.");
-                            }
-                        }
-                    }
-                    return null;
-                });
+        return execute(INVESTIGATE_REPUTATION,
+                restClient.post().uri("/{gameId}/investigate/reputation", gameId), ReputationResponse.class, gameId);
     }
 
+    /**
+     * Downloads the ads on the message board, with encrypted ads decoded.
+     *
+     * @param gameId Active game ID
+     * @return The ads in board order, empty if the server sent none
+     * @throws MugloarApiException if the call fails
+     */
+    public List<AdItem> getMessageBoard(String gameId) {
+        List<AdItem> ads = execute(FETCH_MESSAGES, restClient.get().uri("/{gameId}/messages", gameId), AD_LIST, gameId);
+        if (ads == null) return List.of();
+        return new BoardOfMessages(ads.stream().map(MugloarService::decodeAd).toList()).messages();
+    }
 
     /**
-     * Executes API call and download the active ads from the message board:
-     * Sends a GET message to retrieve all the task from the message board
-     * If the return message is other than success it just writes the information to the console.
+     * Sends the dragon to solve an ad.
      *
-     * @param gameId Active session ID token
-     * @return list of AdItems
-    */
-    public List<AdItem> getMessageBoard(String gameId) {
-        // exchange() hands us the raw response so the status is checked before any body mapping
-        List<AdItem> tasks = restClient.get()
-                .uri("/{gameId}/messages", gameId)
-                .header(HttpHeaders.CONTENT_TYPE, "application/json") // 2. Headers
-                .exchange((request, response) -> {
-                    HttpStatusCode status = response.getStatusCode();
+     * @param gameId Active game ID
+     * @param adId   ID of the ad to solve
+     * @throws MugloarApiException if the call fails
+     */
+    public SolutionResponse solveAd(String gameId, String adId) {
+        return execute(SOLVE_AD,
+                restClient.post().uri("/{gameId}/solve/{adId}", gameId, adId), SolutionResponse.class, gameId, adId);
+    }
 
-                    if (status.value() == 200) {
-                        return response.bodyTo(new ParameterizedTypeReference<List<AdItem>>() {});
-                    }
+    /**
+     * Downloads the items for sale in the shop.
+     *
+     * @param gameId Active game ID
+     * @return The shop items in board order, empty if the server sent none
+     * @throws MugloarApiException if the call fails
+     */
+    public List<ShopItem> getMarketItems(String gameId) {
+        List<ShopItem> items = execute(FETCH_SHOP, restClient.get().uri("/{gameId}/shop", gameId), SHOP_LIST, gameId);
+        if (items == null) return List.of();
+        return new BoardOfMarket(items).shopItems();
+    }
 
-                    switch (status.value()) {
-                        case 400 -> System.out.println("❌ Bad request while fetching the message board for game: " + gameId);
-                        case 404 -> System.out.println("❌ Game not found or already over: " + gameId);
-                        case 410 -> System.out.println("❌ Game session has expired: " + gameId);
-                        default -> {
-                            if (status.is5xxServerError()) {
-                                System.out.println("❌ Mugloar server error (" + status.value() + ") while fetching the message board.");
-                            } else {
-                                System.out.println("❌ Unexpected response (" + status.value() + ") while fetching the message board.");
-                            }
-                        }
-                    }
-                    return null;
-                });
+    /**
+     * Buys an item from the shop.
+     *
+     * @param gameId Active game ID
+     * @param itemId ID of the item to buy
+     * @throws MugloarApiException if the call fails
+     */
+    public TradeResponse buyItem(String gameId, String itemId) {
+        return execute(BUY_ITEM,
+                restClient.post().uri("/{gameId}/shop/buy/{itemId}", gameId, itemId), TradeResponse.class, gameId, itemId);
+    }
 
-        if (tasks == null) {
-            return List.of();
+    private <T> T execute(MugloarOperation operation, RestClient.RequestHeadersSpec<?> request,
+                          Class<T> type, String... ids) {
+        return execute(operation, request, response -> response.bodyTo(type), ids);
+    }
+
+    private <T> T execute(MugloarOperation operation, RestClient.RequestHeadersSpec<?> request,
+                          ParameterizedTypeReference<T> type, String... ids) {
+        return execute(operation, request, response -> response.bodyTo(type), ids);
+    }
+
+    /**
+     * Runs one API call: reads the body on a 2xx status, and turns every failure into a MugloarApiException.
+     * exchange() hands over the raw response, so the status is checked before any body mapping.
+     *
+     * @param operation  Which call this is, for the error message
+     * @param request    The prepared request
+     * @param bodyReader Reads the body into the expected type
+     * @param ids        Game ID, then the ad or item ID if the call has one
+     * @return The body, or null if a successful response had none
+     */
+    private <T> T execute(MugloarOperation operation, RestClient.RequestHeadersSpec<?> request,
+                          Function<ConvertibleClientHttpResponse, T> bodyReader, String... ids) {
+        try {
+            return request.exchange((req, response) -> {
+                if (response.getStatusCode().is2xxSuccessful()) return bodyReader.apply(response);
+                throw MugloarApiException.fromStatus(operation, response.getStatusCode(), ids);
+            });
+        } catch (ResourceAccessException e) {
+            throw MugloarApiException.networkUnavailable(operation, e, ids);
+        } catch (RestClientException e) {
+            throw MugloarApiException.unreadableResponse(operation, e, ids);
         }
-
-        BoardOfMessages board = new BoardOfMessages(tasks.stream().map(MugloarService::decodeAd).toList());
-        return board.messages();
     }
 
     /**
@@ -189,132 +188,4 @@ public class MugloarService {
         }
         return sb.toString();
     }
-
-
-    /**
-     *
-     * Sends a POST request to solve a specific advertisement task.
-     * The SolutionResponse is only created when the status is 200,
-     * otherwise it just writes the information to the console.
-     *
-     * @param gameId Active session ID token
-     * @param adId   The unique ID of the target advertisement message
-     * @return SolutionResponse payload detailing updated state matrices, or null if the request did not succeed
-     */
-    public SolutionResponse solveAd(String gameId, String adId) {
-        // exchange() hands us the raw response so the status is checked before any body mapping
-        return restClient.post()
-                .uri("/{gameId}/solve/{adId}", gameId, adId) // Safely injects both path variables in order
-                .header(HttpHeaders.CONTENT_TYPE, "application/json")
-                .exchange((request, response) -> {
-                    HttpStatusCode status = response.getStatusCode();
-
-                    if (status.value() == 200) {
-                        return response.bodyTo(SolutionResponse.class);
-                    }
-
-                    switch (status.value()) {
-                        case 400 -> System.out.println("❌ Ad " + adId + " could not be solved (unknown or already expired) for game: " + gameId);
-                        case 404 -> System.out.println("❌ Game not found or already over: " + gameId);
-                        case 410 -> System.out.println("❌ Game session has expired: " + gameId);
-                        default -> {
-                            if (status.is5xxServerError()) {
-                                System.out.println("❌ Mugloar server error (" + status.value() + ") while solving ad " + adId + ".");
-                            } else {
-                                System.out.println("❌ Unexpected response (" + status.value() + ") while solving ad " + adId + ".");
-                            }
-                        }
-                    }
-                    return null;
-                });
-    }
-
-
-
-
-    /**
-     * Executes API call and download the shopping Items for the particular game
-     * If the return message is other than success it just writes the information to the console.
-     *
-     * @param gameId Active session ID token
-     * @return list of ShopItems
-     */
-    public List<ShopItem> getMarketItems(String gameId) {
-        // exchange() hands us the raw response so the status is checked before any body mapping
-        List<ShopItem> items = restClient.get()
-                .uri("/{gameId}/shop", gameId)
-                .header(HttpHeaders.CONTENT_TYPE, "application/json") // 2. Headers
-                .exchange((request, response) -> {
-                    HttpStatusCode status = response.getStatusCode();
-
-                    if (status.value() == 200) {
-                        return response.bodyTo(new ParameterizedTypeReference<List<ShopItem>>() {});
-                    }
-
-                    switch (status.value()) {
-                        case 400 -> System.out.println("❌ Bad request while fetching the shop/market items for game: " + gameId);
-                        case 404 -> System.out.println("❌ Game not found or already over: " + gameId);
-                        case 410 -> System.out.println("❌ Game session has expired: " + gameId);
-                        default -> {
-                            if (status.is5xxServerError()) {
-                                System.out.println("❌ Mugloar server error (" + status.value() + ") while fetching the shop items.");
-                            } else {
-                                System.out.println("❌ Unexpected response (" + status.value() + ") while fetching the shop items.");
-                            }
-                        }
-                    }
-                    return null;
-                });
-
-        if (items == null) {
-            return List.of();
-        }
-
-        BoardOfMarket boardOfMarket = new BoardOfMarket(items);
-        return boardOfMarket.shopItems();
-    }
-
-
-
-
-
-
-    /**
-            *
-            * Sends a POST request to buy a specific market item
-            * The TradeResponse is only created when the status is 200,
-            * otherwise it just writes the information to the console.
-     *
-             * @param gameId Active session ID token
-     * @param itemId   The unique ID of the target market item
-     * @return TradeResponse payload detailing updated state matrices, or null if the request did not succeed
-     */
-    public TradeResponse buyItem(String gameId, String itemId) {
-        // exchange() hands us the raw response so the status is checked before any body mapping
-        return restClient.post()
-                .uri("/{gameId}/shop/buy/{itemId}", gameId, itemId) // Safely injects both path variables in order
-                .header(HttpHeaders.CONTENT_TYPE, "application/json")
-                .exchange((request, response) -> {
-                    HttpStatusCode status = response.getStatusCode();
-
-                    if (status.value() == 200) {
-                        return response.bodyTo(TradeResponse.class);
-                    }
-
-                    switch (status.value()) {
-                        case 400 -> System.out.println("❌ Item " + itemId + " could not be bought for game: " + gameId);
-                        case 404 -> System.out.println("❌ Game not found or already over: " + gameId);
-                        case 410 -> System.out.println("❌ Game session has expired: " + gameId);
-                        default -> {
-                            if (status.is5xxServerError()) {
-                                System.out.println("❌ Mugloar server error (" + status.value() + ") while buying item " + itemId + ".");
-                            } else {
-                                System.out.println("❌ Unexpected response (" + status.value() + ") while buying item " + itemId + ".");
-                            }
-                        }
-                    }
-                    return null;
-                });
-    }
-
 }

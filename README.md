@@ -136,6 +136,29 @@ GameChecks.canSolve(status.getTurn()).check(ad).orThrow();
 `orThrow()` throws a `GameRuleException` carrying the `CheckFailure` and a message for the player, e.g.
 "Healing potion costs 50 gold, but you only have 30. You need 20 more."
 
+### Server errors
+Every call to the Mugloar API goes through one method in `MugloarService`. A successful (2xx) response is read
+into its record; anything else throws a `MugloarApiException`, so no endpoint handles errors on its own and
+nothing is printed to the console. The exception carries:
+
+- a `MugloarError` reason, with the status the web app should answer with
+- the `MugloarOperation` that failed, such as `SOLVE_AD` or `BUY_ITEM`
+- the Mugloar server's own status, if it answered
+- a message for the player, e.g. "Mugloar server error (503) while solving ad XFyAyerI."
+
+| Reason | When | Web status |
+|---|---|---|
+| `BAD_REQUEST` | The server answers 400, e.g. an unknown or expired ad, or an item that can't be bought | 400 |
+| `GAME_NOT_FOUND` | 404: the game doesn't exist or is already over | 404 |
+| `GAME_EXPIRED` | 410: the game session has expired | 410 |
+| `SERVER_ERROR` | Any 5xx | 502 |
+| `UNEXPECTED_STATUS` | Any other non-2xx status | 502 |
+| `NETWORK_UNAVAILABLE` | No internet, a timeout or a DNS failure | 503 |
+| `UNREADABLE_RESPONSE` | The body can't be read into the expected record | 502 |
+| `MISSING_GAME_ID` | Starting a game succeeded, but the response has no game ID | 502 |
+
+A successful message board or shop download with an empty body returns an empty list.
+
 ## Project layout
 ```
 src/main/java/com/akbori/dgtrainapp/
@@ -143,6 +166,7 @@ src/main/java/com/akbori/dgtrainapp/
   game/                           game rules: expiry, gold, lives, boards, player status, history
     check/                        checks run before an action, and the reasons they refuse it
   service/                        MugloarService: calls to the Mugloar REST API
+    api/                          MugloarApiException, and the MugloarError and MugloarOperation enums
   dto/                            records for API requests and responses
   model/                          JPA entities stored in SQLite, and the EntryType and RiskCategory enums
   repository/                     Spring Data repositories
@@ -178,7 +202,8 @@ Changes flow `feature/...` → `develop` → `stage` → `release`.
 
 | Test class | What it covers |
 |---|---|
-| `MugloarServiceTest` | API calls against a mocked server, including error responses and ad decoding |
+| `MugloarServiceTest` | Every API call against a mocked server: success, each error status, network failure, an unreadable body and a missing game ID, plus ad decoding |
+| `MugloarErrorTest` | Each server status maps to the right `MugloarError` |
 | `MugloarServiceLiveTest` | The same endpoints against the real Mugloar server (needs network; tagged `live`) |
 | `RiskCategoryTest` | Every probability text maps to the right risk category, ignoring case and spaces; unknown text is `UNKNOWN` |
 | `GameRulesTest` | Ad expiry, affording an item, gold won or spent per history entry, and the life states |
